@@ -16,6 +16,7 @@ export class When extends Component<WhenProps, WhenState> {
 
   render({ value, children = [] }: WhenProps, { ready }: WhenState) {
     let child = children[0];
+    // TODO: why not just use `value`?
     if (value && !ready) this.setState({ ready: true });
     return ready ? (typeof child === 'function' ? child() : child) : null;
   }

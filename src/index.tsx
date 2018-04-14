@@ -4,7 +4,7 @@ import './style';
 import App from './components/app';
 
 // Find the outermost Element in our server-rendered HTML structure.
-let root = document.querySelector('[prerender]') || undefined;
+let root = document.querySelector('.js-prerender') || undefined;
 
 // "attach" the client-side rendering to it, updating the DOM in-place instead of replacing:
 root = render(<App />, document.body, root);
@@ -19,10 +19,6 @@ if (process.env.NODE_ENV === 'development') {
     import('./components/app').then(({ default: App }) => {
       root = render(<App />, document.body, root);
     });
-  });
-} else if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  addEventListener('load', () => {
-    navigator.serviceWorker.register(__webpack_public_path__ + 'sw.js');
   });
 }
 

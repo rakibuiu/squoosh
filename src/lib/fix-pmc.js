@@ -1,3 +1,4 @@
+// TODO: what does this do?
 import { options } from 'preact';
 
 const classNameDescriptor = {
