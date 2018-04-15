@@ -1,5 +1,5 @@
 import './styles.css';
-import { PointerTracker, Pointer } from '../../utils/PointerTracker';
+import { PointerTracker, Pointer } from '../PointerTracker';
 
 interface Point {
   clientX: number;
@@ -77,9 +77,6 @@ export default class PinchZoom extends HTMLElement {
         // We only want to track 2 pointers at most
         if (pointerTracker.currentPointers.length === 2 || !this._positioningEl) return false;
         event.preventDefault();
-
-        // Record current state
-        pointerTracker.resetStartPointers();
         return true;
       },
       move: previousPointers => {
