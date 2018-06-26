@@ -20,8 +20,6 @@ type EncodeOptions = {
 };
 
 export default class MozJpegEncoder implements Encoder {
-  static mimeType = 'image/jpeg';
-
   private emscriptenModule: Promise<EmscriptenWasm.Module>;
   private api: Promise<ModuleAPI>;
 

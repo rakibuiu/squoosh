@@ -4,49 +4,51 @@ import * as style from './style.scss';
 import Output from '../output';
 import Options from '../options';
 
-import { Encoder } from '../../codecs/codec';
-import IdentityEncoder from '../../codecs/identity/encoder';
-import MozJpegEncoder from '../../codecs/mozjpeg/encoder.worker';
+import * as mozJpeg from '../../codecs/mozjpeg/encoder';
+import { Options as MozJPEGOptions } from '../../codecs/mozjpeg/encoder';
 
-export type ImageType = 'original' | 'MozJpeg';
+const ENCODERS = [
+  mozJpeg
+];
 
-export type CodecOptions = any;
+interface EncoderOptions {
+  [mozJpeg.type]: MozJPEGOptions;
+}
 
-const ENCODER_NAMES = {
-  original: 'Original Image',
-  MozJpeg: 'JPEG'
-};
+type EncoderType = keyof EncoderOptions;
 
-const ENCODERS = {
-  original: IdentityEncoder,
-  MozJpeg: MozJpegEncoder
-};
+interface SourceImage {
+  file: File;
+  img: ImageBitmap;
+  data: ImageData;
+}
 
-type Image = {
-  type: ImageType,
-  options: CodecOptions,
-  data?: ImageBitmap,
-  counter: number,
-  loading: boolean
-};
+interface EncodedImage<K extends EncoderType> {
+  type: K;
+  options: EncoderOptions[K];
+  data?: ImageBitmap;
+  counter: number;
+  loading: boolean;
+}
 
 type Props = {};
 
-type State = {
-  sourceFile?: File,
-  sourceImg?: ImageBitmap,
-  sourceData?: ImageData,
-  images: Array<Image>,
-  loading: boolean,
-  error?: string
-};
+interface State {
+  source?: SourceImage;
+  images: [
+    EncodedImage<EncoderType> | 'source',
+    EncodedImage<EncoderType> | 'source'
+  ];
+  loading: boolean;
+  error?: string;
+}
 
 export default class App extends Component<Props, State> {
   state: State = {
     loading: false,
     images: [
-      { type: 'original', options: {}, loading: false, counter: 0 },
-      { type: 'MozJpeg', options: { quality: 7 }, loading: false, counter: 0 }
+      'source',
+      { type: mozJpeg.type, options: { quality: 7 }, loading: false, counter: 0 }
     ]
   };
 
@@ -77,45 +79,49 @@ export default class App extends Component<Props, State> {
   }
 
   componentDidUpdate(prevProps: Props, prevState: State) {
-    const { sourceImg, sourceData, images } = this.state;
+    const { source, images } = this.state;
+
     for (let i = 0; i < images.length; i++) {
-      if (sourceData !== prevState.sourceData || images[i] !== prevState.images[i]) {
+      if (source !== prevState.source || images[i] !== prevState.images[i]) {
         this.updateImage(i);
       }
-    }
-    if (sourceImg !== prevState.sourceImg && prevState.sourceImg) {
-      prevState.sourceImg.close();
     }
   }
 
   @bind
   async onFileChange(event: Event) {
     const fileInput = event.target as HTMLInputElement;
-    const sourceFile = fileInput.files && fileInput.files[0];
-    if (!sourceFile) return;
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
     this.setState({ loading: true });
     try {
-      const sourceImg = await createImageBitmap(sourceFile);
+      const img = await createImageBitmap(file);
       // compute the corresponding ImageData once since it only changes when the file changes:
-      const sourceData = await bitmapToImageData(sourceImg);
-      this.setState({ sourceFile, sourceImg, sourceData, error: undefined, loading: false });
+      const data = await bitmapToImageData(img);
+      this.setState({
+        source: { data, img, file },
+        error: undefined,
+        loading: false
+      });
     } catch (err) {
       this.setState({ error: 'IMAGE_INVALID', loading: false });
     }
   }
 
   async updateImage(index: number) {
-    const { sourceData, images } = this.state;
-    if (!sourceData) return;
+    const { source, images } = this.state;
+    if (!source) return;
     let image = images[index];
+    if (image === 'source') return;
+
     // Each time we trigger an async encode, the ID changes.
     const id = ++image.counter;
     image.loading = true;
     this.setState({ });
-    let result = await this.updateCompressedImage(sourceData, image.type, image.options);
+    const result = await this.updateCompressedImage(source.data, image.type, image.options);
     image = this.state.images[index];
-    // If another encode has been intiated since we started, ignore this one.
-    if (image.counter !== id) return;
+    // If another encode has been initiated since we started, ignore this one.
+    if (image === 'source' || image.counter !== id) return;
     image.data = result;
     image.loading = false;
     this.setState({ });
@@ -139,12 +145,12 @@ export default class App extends Component<Props, State> {
     }
   }
 
-  render({ }: Props, { loading, error, images }: State) {
+  render({ }: Props, { loading, error, images, sourceData }: State) {
     for (let image of images) {
-      if (image.loading) loading = true;
+      if (image && image.loading) loading = true;
     }
-    const leftImg = images[0].data;
-    const rightImg = images[1].data;
+    const leftImg = images[0] ? images[0].data : sourceData;
+    const rightImg = images[1] ? images[1].data : sourceData;
 
     return (
       <div id="app" class={style.app}>
