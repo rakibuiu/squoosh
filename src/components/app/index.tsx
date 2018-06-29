@@ -17,8 +17,10 @@ interface SourceImage {
 }
 
 interface EncodedImage {
-  encoderState: EncoderState;
   bmp?: ImageBitmap;
+  downloadUrl?: string;
+  encoderState: EncoderState;
+  fileName?: string;
   loading: boolean;
   /** Counter of the latest bmp currently encoding */
   loadingCounter: number;
@@ -96,6 +98,9 @@ export default class App extends Component<Props, State> {
 
     for (const [i, image] of images.entries()) {
       if (source !== prevState.source || image !== prevState.images[i]) {
+        if (image.downloadUrl) {
+          URL.revokeObjectURL(image.downloadUrl);
+        }
         this.updateImage(i);
       }
     }
@@ -145,17 +150,23 @@ export default class App extends Component<Props, State> {
     this.setState({ });
 
     const result = await this.updateCompressedImage(source, image.encoderState);
+    const imageBitmap = await createImageBitmap(result);
 
     image = this.state.images[index];
     // If a later encode has landed before this one, return.
     if (loadingCounter < image.loadedCounter) return;
-    image.bmp = result;
+    
+    image.bmp = imageBitmap;
+    image.fileName = source.file.name.replace(/(\..+)$/,''); // remove extension.
     image.loading = image.loadingCounter !== loadingCounter;
     image.loadedCounter = loadingCounter;
+    if (result instanceof Blob) {
+      image.downloadUrl = URL.createObjectURL(result);
+    }
     this.setState({ });
   }
 
-  async updateCompressedImage(source: SourceImage, encodeData: EncoderState): Promise<ImageBitmap> {
+  async updateCompressedImage(source: SourceImage, encodeData: EncoderState): Promise<ImageBitmap | Blob> {
     // Special case for identity
     if (encodeData.type === identity.type) return source.bmp;
 
@@ -171,9 +182,8 @@ export default class App extends Component<Props, State> {
         type: encoderMap[encodeData.type].mimeType
       });
 
-      const bitmap = await createImageBitmap(blob);
       this.setState({ error: '' });
-      return bitmap;
+      return blob;
     } catch (err) {
       this.setState({ error: `Encoding error (type=${encodeData.type}): ${err}` });
       throw err;
@@ -199,6 +209,9 @@ export default class App extends Component<Props, State> {
           {images.map((image, index) => (
             <span class={index ? style.rightLabel : style.leftLabel}>
               {encoderMap[image.encoderState.type].label}
+              { (image.downloadUrl !== undefined) ? (
+                (<a href={image.downloadUrl} download={ image.fileName + '.' + encoderMap[image.encoderState.type].extension}> 🔻 </a>)
+              ) : ('')}
             </span>
           ))}
           {images.map((image, index) => (
